@@ -134,7 +134,7 @@ void onMouse(int button, int state, int pX, int pY) { // pX, pY are the pixel co
 	float cX = 2.0f * pX / windowWidth - 1;	// flip y axis
 	float cY = 1.0f - 2.0f * pY / windowHeight;
 
-	char * buttonStat;
+	const char * buttonStat;
 	switch (state) {
 	case GLUT_DOWN: buttonStat = "pressed"; break;
 	case GLUT_UP:   buttonStat = "released"; break;

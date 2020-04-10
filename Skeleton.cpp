@@ -122,7 +122,7 @@ vec4 toHomogeneousPoint(vec3 v) {
 }
 
 vec4 toHomogeneousVector(vec3 v) {
-	return vec4(v.x, v.y, v.z, 1);
+	return vec4(v.x, v.y, v.z, 0);
 }
 
 struct Light {
@@ -167,7 +167,8 @@ public:
 	DiffuseMaterial(vec3 ka, vec3 ks, vec3 kd, float shine) : ka(ka), ks(ks), kd(kd), shine(shine) {}
 
 	vec3 reflectLight(vec3 ambLight, vec3 inLight, vec3 normal, vec3 lightDir, vec3 eyeDir) const {
-		return ka * ambLight + kd * dot(normal, lightDir) + ks * pow(dot(normalize((lightDir + eyeDir) / 2), normal), shine);
+		//dist
+		return ka * ambLight + inLight * (kd * std::fabs(dot(normal, lightDir)) + ks * pow(std::fmax(dot(normalize((lightDir + eyeDir) / 2), normal), 0), shine));
 	}
 };
 
@@ -209,11 +210,11 @@ public:
 		float b = dot(ray.dir * Q, ray.origin) + dot(ray.origin * Q, ray.dir);
 		float c = dot(ray.origin * Q, ray.origin);
 		float disc = b * b - 4 * a * c;
+		//printf("disc: %f\n", disc);
 		if (disc < 0) {
 			hit.t = -1;
 			return hit;
 		}
-		//printf("disc: %f\n", disc);
 		float discSqrt = sqrt(disc);
 		float t1 = (-b + discSqrt) / (2 * a);
 		float t2 = (-b - discSqrt) / (2 * a);
@@ -232,9 +233,9 @@ class World {
 	vec3 ambLight;
 
 public:
-	World() : cam(vec3(0, 0, -2), vec3(0, 0, -1), vec3(0, 1, 0), vec3(1, 0, 0)), redDiffuseMaterial(vec3(1, 1, 1), vec3(1, 1, 1), vec3(1, 0 ,0), 2), ambLight(0.2, 0.2, 0.2) {
+	World() : cam(vec3(0, 0, 2), vec3(0, 0, -1), vec3(0, 1, 0), vec3(1, 0, 0)), redDiffuseMaterial(vec3(1, 0, 0), vec3(1, 1, 1), vec3(1, 0 ,0), 6), ambLight(0.2, 0.2, 0.2) {
 		shapes.push_back(new QuadraticShape(redDiffuseMaterial, mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,-1)));
-		lights.push_back(Light(vec3(2, 0, 0), vec3(1, 1, 1)));
+		lights.push_back(Light(vec3(-3, 3, 1), vec3(1, 1, 1)));
 	}
 
 	void render(std::vector<vec4>& image) {
@@ -243,7 +244,7 @@ public:
 				float x = (float)i / windowWidth * 2 - 1;
 				float y = (float)j / windowHeight * 2 - 1;
 
-				image.push_back(toHomogeneousVector(trace(cam.getRay(x, y))));
+				image.push_back(toHomogeneousPoint(trace(cam.getRay(x, y))));
 			}
 		}
 	}
@@ -257,6 +258,8 @@ public:
 			Hit hit = shape->intersect(ray);
 			if (hit.t < 0 || hit.t >= firstHit.t)
 				continue;
+
+			//printf("hit %f %f %f\n", hit.point.x, hit.point.y, hit.point.z);
 			firstHit = hit;
 			hitShape = shape;
 		}
@@ -266,7 +269,7 @@ public:
 
 		vec3 reflectedLight;
 		for (auto& light : lights) {
-			reflectedLight = reflectedLight + hitShape->getMaterial().reflectLight(ambLight, light.color, firstHit.normal, light.pos - firstHit.point, toDescartes(vec4() - ray.dir));
+			reflectedLight = reflectedLight + hitShape->getMaterial().reflectLight(ambLight, light.color, firstHit.normal, normalize(light.pos - firstHit.point), toDescartes(vec4() - ray.dir));
 		}
 
 		return reflectedLight;

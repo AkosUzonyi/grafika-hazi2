@@ -6,20 +6,20 @@
 // - mast "beincludolni", illetve mas konyvtarat hasznalni
 // - faljmuveleteket vegezni a printf-et kiveve
 // - Mashonnan atvett programresszleteket forrasmegjeloles nelkul felhasznalni es
-// - felesleges programsorokat a beadott programban hagyni!!!!!!! 
+// - felesleges programsorokat a beadott programban hagyni!!!!!!!
 // - felesleges kommenteket a beadott programba irni a forrasmegjelolest kommentjeit kiveve
 // ---------------------------------------------------------------------------------------------
 // A feladatot ANSI C++ nyelvu forditoprogrammal ellenorizzuk, a Visual Studio-hoz kepesti elteresekrol
 // es a leggyakoribb hibakrol (pl. ideiglenes objektumot nem lehet referencia tipusnak ertekul adni)
 // a hazibeado portal ad egy osszefoglalot.
 // ---------------------------------------------------------------------------------------------
-// A feladatmegoldasokban csak olyan OpenGL fuggvenyek hasznalhatok, amelyek az oran a feladatkiadasig elhangzottak 
+// A feladatmegoldasokban csak olyan OpenGL fuggvenyek hasznalhatok, amelyek az oran a feladatkiadasig elhangzottak
 // A keretben nem szereplo GLUT fuggvenyek tiltottak.
 //
 // NYILATKOZAT
 // ---------------------------------------------------------------------------------------------
-// Nev    : 
-// Neptun : 
+// Nev    :
+// Neptun :
 // ---------------------------------------------------------------------------------------------
 // ezennel kijelentem, hogy a feladatot magam keszitettem, es ha barmilyen segitseget igenybe vettem vagy
 // mas szellemi termeket felhasznaltam, akkor a forrast es az atvett reszt kommentekben egyertelmuen jeloltem.
@@ -33,82 +33,263 @@
 //=============================================================================================
 #include "framework.h"
 
-// vertex shader in GLSL: It is a Raw string (C++11) since it contains new line characters
-const char * const vertexSource = R"(
-	#version 330				// Shader 3.3
-	precision highp float;		// normal floats, makes no difference on desktop computers
+GPUProgram gpuProgram; // vertex and fragment shaders
 
-	uniform mat4 MVP;			// uniform variable, the Model-View-Projection transformation matrix
-	layout(location = 0) in vec2 vp;	// Varying input: vp = vertex position is expected in attrib array 0
+// vertex shader in GLSL: It is a Raw string (C++11) since it contains new line characters
+const char* const vertexSource = R"(
+	#version 330
+	precision highp float;
+
+	layout(location = 0) in vec2 cVertexPosition;
+	out vec2 texcoord;
 
 	void main() {
-		gl_Position = vec4(vp.x, vp.y, 0, 1) * MVP;		// transform vp from modeling space to normalized device space
+		texcoord = (cVertexPosition + vec2(1, 1)) / 2;
+		gl_Position = vec4(cVertexPosition.x, cVertexPosition.y, 0, 1);
 	}
 )";
 
 // fragment shader in GLSL
-const char * const fragmentSource = R"(
-	#version 330			// Shader 3.3
-	precision highp float;	// normal floats, makes no difference on desktop computers
-	
-	uniform vec3 color;		// uniform variable, the color of the primitive
-	out vec4 outColor;		// computed color of the current pixel
+const char* const fragmentSource = R"(
+	#version 330
+	precision highp float;
 
-	void main() {
-		outColor = vec4(color, 1);	// computed color is the color of the primitive
-	}
+	uniform sampler2D textureUnit;
+	in vec2 texcoord;
+	out vec4 fragmentColor;
+
+	void main() { fragmentColor = texture(textureUnit, texcoord); }
 )";
 
-GPUProgram gpuProgram; // vertex and fragment shaders
-unsigned int vao;	   // virtual world on the GPU
+class FullScreenTextQuad {
+	unsigned int vao = 0, textureId = 0;
+public:
+	void genTexture() {
+		glGenVertexArrays(1, &vao);	// get 1 vao id
+		glBindVertexArray(vao);		// make it active
+
+		unsigned int vbo;
+		glGenBuffers(1, &vbo);	// Generate 1 buffer
+		glBindBuffer(GL_ARRAY_BUFFER, vbo);
+		float vertexCoords[] = { -1,-1,1,-1,1,1,-1,1 };
+		glBufferData(GL_ARRAY_BUFFER, sizeof(vertexCoords), vertexCoords, GL_STATIC_DRAW);
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, NULL);
+
+		glGenTextures(1, &textureId);
+		glBindTexture(GL_TEXTURE_2D, textureId);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	}
+
+	void LoadTexture(std::vector<vec4>& image) {
+		glBindTexture(GL_TEXTURE_2D, textureId);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, windowWidth, windowHeight, 0, GL_RGBA, GL_FLOAT, &image[0]);
+	}
+
+
+	void Draw() {
+		glBindVertexArray(vao);
+		int location = glGetUniformLocation(gpuProgram.getId(), "textureUnit");
+		const unsigned int textureUnit = 0;
+		if (location >= 0) {
+			glUniform1i(location, textureUnit);
+			glActiveTexture(GL_TEXTURE0 + textureUnit);
+			glBindTexture(GL_TEXTURE_2D, textureId);
+		}
+		glDrawArrays(GL_TRIANGLE_FAN, 0, 4);
+	}
+};
+
+FullScreenTextQuad fullScreenTextQuad;
+
+mat4 identityMat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
+
+mat4 transpose(const mat4& M) {
+	mat4 Mt;
+	for (int i = 0; i < 4; i++)
+		for (int j = 0; j < 4; j++)
+			Mt[i][j] = M[j][i];
+	return Mt;
+}
+
+vec3 toDescartes(vec4 v) {
+	return vec3(v.x / v.w, v.z / v.w, v.z / v.w);
+}
+
+vec4 toHomogeneousPoint(vec3 v) {
+	return vec4(v.x, v.y, v.z, 1);
+}
+
+vec4 toHomogeneousVector(vec3 v) {
+	return vec4(v.x, v.y, v.z, 1);
+}
+
+struct Light {
+	vec3 pos;
+	vec3 color;
+
+	Light(vec3 pos, vec3 color) : pos(pos), color(color) {}
+};
+
+struct Hit {
+	vec3 point, normal;
+	float t;
+};
+
+float firstIntersect(float t1, float t2) {
+	float min = t1 < t2 ? t1 : t2;
+	if (min > 0)
+		return min;
+
+	float max = t1 > t2 ? t1 : t2;
+	if (max > 0)
+		return max;
+
+	return -1;
+}
+
+struct Ray {
+	vec4 origin, dir;
+
+	Ray(vec3 o, vec3 d) : origin(toHomogeneousPoint(o)), dir(toHomogeneousVector(normalize(d))) {}
+};
+
+class Material {
+public:
+	virtual vec3 reflectLight(vec3 ambLight, vec3 inLight, vec3 normal, vec3 lightDir, vec3 eyeDir) const = 0;
+};
+
+class DiffuseMaterial : public Material {
+	vec3 ka, ks, kd;
+	float shine;
+public:
+	DiffuseMaterial(vec3 ka, vec3 ks, vec3 kd, float shine) : ka(ka), ks(ks), kd(kd), shine(shine) {}
+
+	vec3 reflectLight(vec3 ambLight, vec3 inLight, vec3 normal, vec3 lightDir, vec3 eyeDir) const {
+		return ka * ambLight + kd * dot(normal, lightDir) + ks * pow(dot(normalize((lightDir + eyeDir) / 2), normal), shine);
+	}
+};
+
+class Camera {
+	vec3 pos, look, up, right;
+public:
+	Camera(vec3 pos, vec3 look, vec3 up, vec3 right) : pos(pos), look(look), up(up), right(right) {}
+
+	Ray getRay(float x, float y) const {
+		return Ray(pos, look + right * x + up * y);
+	}
+};
+
+class Shape {
+	const Material& material;
+public:
+	Shape(const Material& material) : material(material) {}
+
+	virtual Hit intersect(Ray ray) const = 0;
+
+	const Material& getMaterial() const {
+		return material;
+	}
+};
+
+class QuadraticShape : public Shape {
+	mat4 Q;
+
+public:
+	QuadraticShape(const Material& material, const mat4& Q) : Shape(material), Q(Q) {}
+
+	void transform(mat4 M) {
+		Q = M * Q * transpose(M);
+	}
+
+	Hit intersect(Ray ray) const {
+		Hit hit;
+		float a = dot(ray.dir * Q, ray.dir);
+		float b = dot(ray.dir * Q, ray.origin) + dot(ray.origin * Q, ray.dir);
+		float c = dot(ray.origin * Q, ray.origin);
+		float disc = b * b - 4 * a * c;
+		if (disc < 0) {
+			hit.t = -1;
+			return hit;
+		}
+		//printf("disc: %f\n", disc);
+		float discSqrt = sqrt(disc);
+		float t1 = (-b + discSqrt) / (2 * a);
+		float t2 = (-b - discSqrt) / (2 * a);
+		hit.t = firstIntersect(t1, t2);
+		hit.point = toDescartes(ray.origin + ray.dir * hit.t);
+		hit.normal = toDescartes(toHomogeneousPoint(hit.point) * Q * 2);
+		return hit;
+	}
+};
+
+class World {
+	std::vector<Light> lights;
+	std::vector<Shape*> shapes;
+	Camera cam;
+	DiffuseMaterial redDiffuseMaterial;
+	vec3 ambLight;
+
+public:
+	World() : cam(vec3(0, 0, -2), vec3(0, 0, -1), vec3(0, 1, 0), vec3(1, 0, 0)), redDiffuseMaterial(vec3(1, 1, 1), vec3(1, 1, 1), vec3(1, 0 ,0), 2), ambLight(0.2, 0.2, 0.2) {
+		shapes.push_back(new QuadraticShape(redDiffuseMaterial, mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,-1)));
+		lights.push_back(Light(vec3(2, 0, 0), vec3(1, 1, 1)));
+	}
+
+	void render(std::vector<vec4>& image) {
+		for (int i = 0; i < windowWidth; i++) {
+			for (int j = 0; j < windowHeight; j++) {
+				float x = (float)i / windowWidth * 2 - 1;
+				float y = (float)j / windowHeight * 2 - 1;
+
+				image.push_back(toHomogeneousVector(trace(cam.getRay(x, y))));
+			}
+		}
+	}
+
+	vec3 trace(Ray ray) const {
+		//printf("%f %f %f\n", ray.dir.x, ray.dir.y, ray.dir.z);
+		Hit firstHit;
+		Shape* hitShape = nullptr;
+		firstHit.t = INFINITY;
+		for (auto shape : shapes) {
+			Hit hit = shape->intersect(ray);
+			if (hit.t < 0 || hit.t >= firstHit.t)
+				continue;
+			firstHit = hit;
+			hitShape = shape;
+		}
+
+		if (hitShape == nullptr)
+			return ambLight;
+
+		vec3 reflectedLight;
+		for (auto& light : lights) {
+			reflectedLight = reflectedLight + hitShape->getMaterial().reflectLight(ambLight, light.color, firstHit.normal, light.pos - firstHit.point, toDescartes(vec4() - ray.dir));
+		}
+
+		return reflectedLight;
+	}
+};
+
+World world;
+std::vector<vec4> image;
 
 // Initialization, create an OpenGL context
 void onInitialization() {
 	glViewport(0, 0, windowWidth, windowHeight);
-
-	glGenVertexArrays(1, &vao);	// get 1 vao id
-	glBindVertexArray(vao);		// make it active
-
-	unsigned int vbo;		// vertex buffer object
-	glGenBuffers(1, &vbo);	// Generate 1 buffer
-	glBindBuffer(GL_ARRAY_BUFFER, vbo);
-	// Geometry with 24 bytes (6 floats or 3 x 2 coordinates)
-	float vertices[] = { -0.8f, -0.8f, -0.6f, 1.0f, 0.8f, -0.2f };
-	glBufferData(GL_ARRAY_BUFFER, 	// Copy to GPU target
-		sizeof(vertices),  // # bytes
-		vertices,	      	// address
-		GL_STATIC_DRAW);	// we do not change later
-
-	glEnableVertexAttribArray(0);  // AttribArray 0
-	glVertexAttribPointer(0,       // vbo -> AttribArray 0
-		2, GL_FLOAT, GL_FALSE, // two floats/attrib, not fixed-point
-		0, NULL); 		     // stride, offset: tightly packed
-
-	// create program for the GPU
-	gpuProgram.create(vertexSource, fragmentSource, "outColor");
+	gpuProgram.create(vertexSource, fragmentSource, "fragmentColor");
+	fullScreenTextQuad.genTexture();
+	world.render(image);
 }
 
 // Window has become invalid: Redraw
 void onDisplay() {
-	glClearColor(0, 0, 0, 0);     // background color
-	glClear(GL_COLOR_BUFFER_BIT); // clear frame buffer
-
-	// Set color to (0, 1, 0) = green
-	int location = glGetUniformLocation(gpuProgram.getId(), "color");
-	glUniform3f(location, 0.0f, 1.0f, 0.0f); // 3 floats
-
-	float MVPtransf[4][4] = { 1, 0, 0, 0,    // MVP matrix, 
-							  0, 1, 0, 0,    // row-major!
-							  0, 0, 1, 0,
-							  0, 0, 0, 1 };
-
-	location = glGetUniformLocation(gpuProgram.getId(), "MVP");	// Get the GPU location of uniform variable MVP
-	glUniformMatrix4fv(location, 1, GL_TRUE, &MVPtransf[0][0]);	// Load a 4x4 row-major float matrix to the specified location
-
-	glBindVertexArray(vao);  // Draw call
-	glDrawArrays(GL_TRIANGLES, 0 /*startIdx*/, 3 /*# Elements*/);
-
-	glutSwapBuffers(); // exchange buffers for double buffering
+	//std::vector<vec4> image(windowHeight * windowWidth, vec4(0.5, 0.5, 0, 0));
+	fullScreenTextQuad.LoadTexture(image);
+	fullScreenTextQuad.Draw();
+	glutSwapBuffers();
 }
 
 // Key of ASCII code pressed

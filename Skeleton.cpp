@@ -187,6 +187,13 @@ public:
 	vec3 trace(const World& world, vec3 point, vec3 normal, vec3 eyeDir) const;
 };
 
+class ReflectiveMaterial : public Material {
+	vec3 n, k;
+public:
+	ReflectiveMaterial(vec3 n, vec3 k) : n(n), k(k) {}
+	vec3 trace(const World& world, vec3 point, vec3 normal, vec3 eyeDir) const;
+};
+
 class Shape {
 	const Material& material;
 public:
@@ -252,9 +259,6 @@ Hit QuadraticShape::intersect(Ray ray) const {
 
 
 vec3 DiffuseMaterial::trace(const World& world, vec3 point, vec3 normal, vec3 eyeDir) const {
-	if (dot(eyeDir, normal) < 0)
-		normal = -normal;
-
 	vec3 color;
 	color = color + ka * world.ambLight;
 
@@ -276,6 +280,21 @@ vec3 DiffuseMaterial::trace(const World& world, vec3 point, vec3 normal, vec3 ey
 	return color;
 }
 
+vec3 operator/(vec3 a, vec3 b) {
+	return vec3(a.x / b.x, a.y / b.y, a.z / b.z);
+}
+
+vec3 ReflectiveMaterial::trace(const World& world, vec3 point, vec3 normal, vec3 eyeDir) const {
+	float cosAngle = dot(normal, eyeDir);
+	vec3 reflectDir = cosAngle * normal * 2 - eyeDir;
+
+	vec3 one(1, 1, 1);
+	vec3 f0 = ((n - one) * (n - one) + k * k) / ((n + one) * (n + one) + k * k);
+	vec3 f = f0 + (one - f0) * pow(1 - cosAngle, 5);
+
+	return world.trace(Ray(point + normal * 0.01, reflectDir)) * f;
+}
+
 Hit World::intersect(Ray ray) const {
 	Hit firstHit;
 	for (auto shape : shapes) {
@@ -294,7 +313,11 @@ vec3 World::trace(Ray ray) const {
 	if (!hit.shape)
 		return ambLight;
 
-	return hit.shape->getMaterial().trace(*this, hit.point, hit.normal, -cutToVec3(ray.dir));
+	vec3 eyeDir = -cutToVec3(ray.dir);
+	if (dot(eyeDir, hit.normal) < 0)
+		hit.normal = -hit.normal;
+
+	return hit.shape->getMaterial().trace(*this, hit.point, hit.normal, eyeDir);
 }
 
 World world;
@@ -309,10 +332,11 @@ void onInitialization() {
 
 	DiffuseMaterial redDiffuseMaterial(vec3(1, 0, 0), vec3(1, 1, 1), vec3(1, 0 ,0), 6);
 	DiffuseMaterial greenDiffuseMaterial(vec3(0, 1, 0), vec3(1, 1, 1), vec3(0, 1 ,0), 30);
+	ReflectiveMaterial gold(vec3(0.17, 0.35, 1.5), vec3(3.1, 2.7, 1.9));
 
 	world.ambLight = vec3(0.2, 0.2, 0.2);
 
-	world.shapes.push_back(new QuadraticShape(redDiffuseMaterial, mat4(1,0,0,0, 0,1,0,0, 0,0,2,0, 0,0,0,-2)));
+	world.shapes.push_back(new QuadraticShape(gold, mat4(1,0,0,0, 0,1,0,0, 0,0,2,0, 0,0,0,-2)));
 	world.shapes.push_back(new QuadraticShape(greenDiffuseMaterial, mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,-0.04)));
 	world.shapes[1]->transform(TranslateMatrix(vec3()-vec3(0.7, 0.5, 1)));
 	world.lights.push_back(Light(vec3(1, 1, 2), vec3(1, 1, 1)));

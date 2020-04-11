@@ -222,6 +222,9 @@ public:
 	std::vector<Light> lights;
 	std::vector<Shape*> shapes;
 	vec3 ambLight;
+	vec3 sky;
+	vec3 sun;
+	vec3 sunDir;
 
 	Hit intersect(Ray ray) const;
 	vec3 trace(Ray ray) const;
@@ -310,14 +313,18 @@ Hit World::intersect(Ray ray) const {
 vec3 World::trace(Ray ray) const {
 	Hit hit = intersect(ray);
 
-	if (!hit.shape)
-		return ambLight;
+	if (hit.shape)
+	{
+		vec3 eyeDir = -cutToVec3(ray.dir);
+		if (dot(eyeDir, hit.normal) < 0)
+			hit.normal = -hit.normal;
 
-	vec3 eyeDir = -cutToVec3(ray.dir);
-	if (dot(eyeDir, hit.normal) < 0)
-		hit.normal = -hit.normal;
-
-	return hit.shape->getMaterial().trace(*this, hit.point, hit.normal, eyeDir);
+		return hit.shape->getMaterial().trace(*this, hit.point, hit.normal, eyeDir);
+	}
+	else
+	{
+		return sky + sun * pow(std::fmax(dot(cutToVec3(ray.dir), sunDir), 0), 10);
+	}
 }
 
 World world;
@@ -335,6 +342,9 @@ void onInitialization() {
 	ReflectiveMaterial gold(vec3(0.17, 0.35, 1.5), vec3(3.1, 2.7, 1.9));
 
 	world.ambLight = vec3(0.2, 0.2, 0.2);
+	world.sky = vec3(0.2, 0.2, 0.6);
+	world.sun = vec3(1, 1, 0.6);
+	world.sunDir = normalize(vec3(1, 1, 1));
 
 	world.shapes.push_back(new QuadraticShape(gold, mat4(1,0,0,0, 0,1,0,0, 0,0,2,0, 0,0,0,-2)));
 	world.shapes.push_back(new QuadraticShape(greenDiffuseMaterial, mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,-0.04)));

@@ -176,7 +176,7 @@ public:
 class World;
 class Material {
 public:
-	virtual vec3 getColor(const World& world, vec3 point, vec3 normal, vec3 eyeDir) const = 0;
+	virtual vec3 trace(const World& world, vec3 point, vec3 normal, vec3 eyeDir) const = 0;
 };
 
 class DiffuseMaterial : public Material {
@@ -184,7 +184,7 @@ class DiffuseMaterial : public Material {
 	float shine;
 public:
 	DiffuseMaterial(vec3 ka, vec3 ks, vec3 kd, float shine) : ka(ka), ks(ks), kd(kd), shine(shine) {}
-	vec3 getColor(const World& world, vec3 point, vec3 normal, vec3 eyeDir) const;
+	vec3 trace(const World& world, vec3 point, vec3 normal, vec3 eyeDir) const;
 };
 
 class Shape {
@@ -214,26 +214,10 @@ class World {
 public:
 	std::vector<Light> lights;
 	std::vector<Shape*> shapes;
-	Camera cam;
-	DiffuseMaterial redDiffuseMaterial;
-	DiffuseMaterial greenDiffuseMaterial;
 	vec3 ambLight;
 
-	World() :
-		cam(vec3(0, 0, 2), vec3(0, 0, -1), vec3(0, 1, 0), vec3(1, 0, 0)),
-		redDiffuseMaterial(vec3(1, 0, 0), vec3(1, 1, 1), vec3(1, 0 ,0), 6),
-		greenDiffuseMaterial(vec3(0, 1, 0), vec3(1, 1, 1), vec3(0, 1 ,0), 30),
-		ambLight(0.2, 0.2, 0.2) {
-
-		shapes.push_back(new QuadraticShape(redDiffuseMaterial, mat4(1,0,0,0, 0,1,0,0, 0,0,2,0, 0,0,0,-2)));
-		shapes.push_back(new QuadraticShape(greenDiffuseMaterial, mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,-0.04)));
-		shapes[1]->transform(TranslateMatrix(vec3()-vec3(0.7, 0.5, 1)));
-		lights.push_back(Light(vec3(1, 1, 2), vec3(1, 1, 1)));
-	}
-
-	void render(std::vector<vec4>& image) const;
 	Hit intersect(Ray ray) const;
-	vec3 getColor(Ray ray) const;
+	vec3 trace(Ray ray) const;
 };
 
 
@@ -267,7 +251,7 @@ Hit QuadraticShape::intersect(Ray ray) const {
 }
 
 
-vec3 DiffuseMaterial::getColor(const World& world, vec3 point, vec3 normal, vec3 eyeDir) const {
+vec3 DiffuseMaterial::trace(const World& world, vec3 point, vec3 normal, vec3 eyeDir) const {
 	if (dot(eyeDir, normal) < 0)
 		normal = -normal;
 
@@ -292,17 +276,6 @@ vec3 DiffuseMaterial::getColor(const World& world, vec3 point, vec3 normal, vec3
 	return color;
 }
 
-void World::render(std::vector<vec4>& image) const {
-	for (int j = 0; j < windowHeight; j++) {
-		for (int i = 0; i < windowWidth; i++) {
-			float x = (float)i / windowWidth * 2 - 1;
-			float y = (float)j / windowHeight * 2 - 1;
-
-			image.push_back(toHomogeneousPoint(getColor(cam.getRay(x, y))));
-		}
-	}
-}
-
 Hit World::intersect(Ray ray) const {
 	Hit firstHit;
 	for (auto shape : shapes) {
@@ -315,16 +288,17 @@ Hit World::intersect(Ray ray) const {
 	return firstHit;
 }
 
-vec3 World::getColor(Ray ray) const {
+vec3 World::trace(Ray ray) const {
 	Hit hit = intersect(ray);
 
 	if (!hit.shape)
 		return ambLight;
 
-	return hit.shape->getMaterial().getColor(*this, hit.point, hit.normal, -cutToVec3(ray.dir));
+	return hit.shape->getMaterial().trace(*this, hit.point, hit.normal, -cutToVec3(ray.dir));
 }
 
 World world;
+Camera camera(vec3(0, 0, 2), vec3(0, 0, -1), vec3(0, 1, 0), vec3(1, 0, 0));
 std::vector<vec4> image;
 
 // Initialization, create an OpenGL context
@@ -332,7 +306,26 @@ void onInitialization() {
 	glViewport(0, 0, windowWidth, windowHeight);
 	gpuProgram.create(vertexSource, fragmentSource, "fragmentColor");
 	fullScreenTextQuad.genTexture();
-	world.render(image);
+
+	DiffuseMaterial redDiffuseMaterial(vec3(1, 0, 0), vec3(1, 1, 1), vec3(1, 0 ,0), 6);
+	DiffuseMaterial greenDiffuseMaterial(vec3(0, 1, 0), vec3(1, 1, 1), vec3(0, 1 ,0), 30);
+
+	world.ambLight = vec3(0.2, 0.2, 0.2);
+
+	world.shapes.push_back(new QuadraticShape(redDiffuseMaterial, mat4(1,0,0,0, 0,1,0,0, 0,0,2,0, 0,0,0,-2)));
+	world.shapes.push_back(new QuadraticShape(greenDiffuseMaterial, mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,-0.04)));
+	world.shapes[1]->transform(TranslateMatrix(vec3()-vec3(0.7, 0.5, 1)));
+	world.lights.push_back(Light(vec3(1, 1, 2), vec3(1, 1, 1)));
+
+
+	for (int j = 0; j < windowHeight; j++) {
+		for (int i = 0; i < windowWidth; i++) {
+			float x = (float)i / windowWidth * 2 - 1;
+			float y = (float)j / windowHeight * 2 - 1;
+
+			image.push_back(toHomogeneousPoint(world.trace(camera.getRay(x, y))));
+		}
+	}
 }
 
 // Window has become invalid: Redraw

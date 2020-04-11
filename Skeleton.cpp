@@ -103,6 +103,8 @@ public:
 
 FullScreenTextQuad fullScreenTextQuad;
 
+
+
 mat4 identityMat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
 
 mat4 transpose(const mat4& M) {
@@ -159,24 +161,6 @@ struct Ray {
 	Ray(vec3 o, vec3 d) : origin(toHomogeneousPoint(o)), dir(toHomogeneousVector(normalize(d))) {}
 };
 
-class Material {
-public:
-	virtual vec3 reflectLight(vec3 ambLight, vec3 inLight, vec3 normal, vec3 lightDir, vec3 eyeDir) const = 0;
-};
-
-class DiffuseMaterial : public Material {
-	vec3 ka, ks, kd;
-	float shine;
-public:
-	DiffuseMaterial(vec3 ka, vec3 ks, vec3 kd, float shine) : ka(ka), ks(ks), kd(kd), shine(shine) {}
-
-	vec3 reflectLight(vec3 ambLight, vec3 inLight, vec3 normal, vec3 lightDir, vec3 eyeDir) const {
-		if (dot(eyeDir, normal) < 0)
-			normal = -normal;
-		return ka * ambLight + inLight * (kd * std::fmax(dot(normal, lightDir), 0) + ks * pow(std::fmax(dot(normalize((lightDir + eyeDir) / 2), normal), 0), shine));
-	}
-};
-
 class Camera {
 	vec3 pos, look, up, right;
 public:
@@ -185,6 +169,22 @@ public:
 	Ray getRay(float x, float y) const {
 		return Ray(pos, look + right * x + up * y);
 	}
+};
+
+
+
+class World;
+class Material {
+public:
+	virtual vec3 getColor(const World& world, vec3 point, vec3 normal, vec3 eyeDir) const = 0;
+};
+
+class DiffuseMaterial : public Material {
+	vec3 ka, ks, kd;
+	float shine;
+public:
+	DiffuseMaterial(vec3 ka, vec3 ks, vec3 kd, float shine) : ka(ka), ks(ks), kd(kd), shine(shine) {}
+	vec3 getColor(const World& world, vec3 point, vec3 normal, vec3 eyeDir) const;
 };
 
 class Shape {
@@ -206,35 +206,12 @@ class QuadraticShape : public Shape {
 public:
 	QuadraticShape(const Material& material, const mat4& Q) : Shape(material), Q(Q) {}
 
-	void transform(mat4 M) {
-		Q = M * Q * transpose(M);
-	}
-
-	Hit intersect(Ray ray) const {
-		Hit hit;
-		float a = dot(ray.dir * Q, ray.dir);
-		float b = dot(ray.dir * Q, ray.origin) + dot(ray.origin * Q, ray.dir);
-		float c = dot(ray.origin * Q, ray.origin);
-		float disc = b * b - 4 * a * c;
-		if (disc < 0)
-			return hit;
-
-		float discSqrt = sqrt(disc);
-		float t1 = (-b + discSqrt) / (2 * a);
-		float t2 = (-b - discSqrt) / (2 * a);
-
-		if (t1 < 0 && t2 < 0)
-			return hit;
-
-		hit.shape = this;
-		hit.t = firstIntersect(t1, t2);
-		hit.point = cutToVec3(ray.origin + ray.dir * hit.t);
-		hit.normal = normalize(cutToVec3(toHomogeneousPoint(hit.point) * Q * 2));
-		return hit;
-	}
+	void transform(mat4 M);
+	Hit intersect(Ray ray) const;
 };
 
 class World {
+public:
 	std::vector<Light> lights;
 	std::vector<Shape*> shapes;
 	Camera cam;
@@ -242,63 +219,110 @@ class World {
 	DiffuseMaterial greenDiffuseMaterial;
 	vec3 ambLight;
 
-public:
 	World() :
 		cam(vec3(0, 0, 2), vec3(0, 0, -1), vec3(0, 1, 0), vec3(1, 0, 0)),
 		redDiffuseMaterial(vec3(1, 0, 0), vec3(1, 1, 1), vec3(1, 0 ,0), 6),
-		greenDiffuseMaterial(vec3(0, 1, 0), vec3(1, 1, 1), vec3(0, 1 ,0), 4),
+		greenDiffuseMaterial(vec3(0, 1, 0), vec3(1, 1, 1), vec3(0, 1 ,0), 30),
 		ambLight(0.2, 0.2, 0.2) {
 
-		shapes.push_back(new QuadraticShape(redDiffuseMaterial, mat4(2,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,-1)));
+		shapes.push_back(new QuadraticShape(redDiffuseMaterial, mat4(1,0,0,0, 0,1,0,0, 0,0,2,0, 0,0,0,-2)));
 		shapes.push_back(new QuadraticShape(greenDiffuseMaterial, mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,-0.04)));
-		shapes[1]->transform(TranslateMatrix(vec3()-vec3(0, -0.5, 1)));
-		lights.push_back(Light(vec3(0, -1, 3), vec3(1, 1, 1)));
+		shapes[1]->transform(TranslateMatrix(vec3()-vec3(0.7, 0.5, 1)));
+		lights.push_back(Light(vec3(1, 1, 2), vec3(1, 1, 1)));
 	}
 
-	void render(std::vector<vec4>& image) const {
-		for (int j = 0; j < windowHeight; j++) {
-			for (int i = 0; i < windowWidth; i++) {
-				float x = (float)i / windowWidth * 2 - 1;
-				float y = (float)j / windowHeight * 2 - 1;
-
-				image.push_back(toHomogeneousPoint(getColor(cam.getRay(x, y))));
-			}
-		}
-	}
-
-	Hit trace(Ray ray) const {
-		Hit firstHit;
-		for (auto shape : shapes) {
-			Hit hit = shape->intersect(ray);
-			if (!hit.shape || hit.t >= firstHit.t)
-				continue;
-
-			firstHit = hit;
-		}
-		return firstHit;
-	}
-
-	vec3 getColor(Ray ray) const {
-		Hit hit = trace(ray);
-
-		if (!hit.shape)
-			return ambLight;
-
-		vec3 reflectedLight;
-		for (auto& light : lights) {
-			vec3 lightDir = normalize(light.pos - hit.point);
-			Hit hitToLight = trace(Ray(hit.point + hit.normal * 0.01, lightDir));
-			if (hitToLight.shape) {
-				float lightDist = length(light.pos - hit.point);
-				if (hitToLight.t < lightDist)
-					return vec3(0, 0, 0);
-			}
-			reflectedLight = reflectedLight + hit.shape->getMaterial().reflectLight(ambLight, light.color, hit.normal, lightDir, cutToVec3(vec4() - ray.dir));
-		}
-
-		return reflectedLight;
-	}
+	void render(std::vector<vec4>& image) const;
+	Hit intersect(Ray ray) const;
+	vec3 getColor(Ray ray) const;
 };
+
+
+
+
+void QuadraticShape::transform(mat4 M) {
+	Q = M * Q * transpose(M);
+}
+
+Hit QuadraticShape::intersect(Ray ray) const {
+	Hit hit;
+	float a = dot(ray.dir * Q, ray.dir);
+	float b = dot(ray.dir * Q, ray.origin) + dot(ray.origin * Q, ray.dir);
+	float c = dot(ray.origin * Q, ray.origin);
+	float disc = b * b - 4 * a * c;
+	if (disc < 0)
+		return hit;
+
+	float discSqrt = sqrt(disc);
+	float t1 = (-b + discSqrt) / (2 * a);
+	float t2 = (-b - discSqrt) / (2 * a);
+
+	if (t1 < 0 && t2 < 0)
+		return hit;
+
+	hit.shape = this;
+	hit.t = firstIntersect(t1, t2);
+	hit.point = cutToVec3(ray.origin + ray.dir * hit.t);
+	hit.normal = normalize(cutToVec3(toHomogeneousPoint(hit.point) * Q));
+	return hit;
+}
+
+
+vec3 DiffuseMaterial::getColor(const World& world, vec3 point, vec3 normal, vec3 eyeDir) const {
+	if (dot(eyeDir, normal) < 0)
+		normal = -normal;
+
+	vec3 color;
+	color = color + ka * world.ambLight;
+
+	for (auto& light : world.lights) {
+		vec3 lightDir = normalize(light.pos - point);
+		Hit hitToLight = world.intersect(Ray(point + normal * 0.01, lightDir));
+		bool shadow = false;
+		if (hitToLight.shape) {
+			float lightDist = length(light.pos - point);
+			if (hitToLight.t < lightDist)
+				continue;
+		}
+
+		//inLight = inLight / (lightDir)
+		color = color + light.color * (kd * std::fmax(dot(normal, lightDir), 0));
+		color = color + light.color * (ks * pow(std::fmax(dot(normalize((lightDir + eyeDir) / 2), normal), 0), shine));
+	}
+
+	return color;
+}
+
+void World::render(std::vector<vec4>& image) const {
+	for (int j = 0; j < windowHeight; j++) {
+		for (int i = 0; i < windowWidth; i++) {
+			float x = (float)i / windowWidth * 2 - 1;
+			float y = (float)j / windowHeight * 2 - 1;
+
+			image.push_back(toHomogeneousPoint(getColor(cam.getRay(x, y))));
+		}
+	}
+}
+
+Hit World::intersect(Ray ray) const {
+	Hit firstHit;
+	for (auto shape : shapes) {
+		Hit hit = shape->intersect(ray);
+		if (!hit.shape || hit.t >= firstHit.t)
+			continue;
+
+		firstHit = hit;
+	}
+	return firstHit;
+}
+
+vec3 World::getColor(Ray ray) const {
+	Hit hit = intersect(ray);
+
+	if (!hit.shape)
+		return ambLight;
+
+	return hit.shape->getMaterial().getColor(*this, hit.point, hit.normal, -cutToVec3(ray.dir));
+}
 
 World world;
 std::vector<vec4> image;

@@ -211,7 +211,7 @@ class QuadraticShape : public Shape {
 	mat4 Q;
 
 public:
-	QuadraticShape(const Material& material, const mat4& Q) : Shape(material), Q(Q) {}
+	QuadraticShape(const Material& material, const mat4& Q = mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,-1)) : Shape(material), Q(Q) {}
 
 	void transform(mat4 M);
 	Hit intersect(Ray ray) const;
@@ -346,9 +346,17 @@ void onInitialization() {
 	world.sun = vec3(1, 1, 0.6);
 	world.sunDir = normalize(vec3(1, 1, 1));
 
-	world.shapes.push_back(new QuadraticShape(gold, mat4(1,0,0,0, 0,1,0,0, 0,0,2,0, 0,0,0,-2)));
-	world.shapes.push_back(new QuadraticShape(greenDiffuseMaterial, mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,-0.04)));
-	world.shapes[1]->transform(TranslateMatrix(vec3()-vec3(0.7, 0.5, 1)));
+	QuadraticShape room(redDiffuseMaterial);
+	room.transform(ScaleMatrix(vec3(0.3, 0.3, 0.3)));
+
+	QuadraticShape ball(greenDiffuseMaterial, mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,-0.04));
+	ball.transform(TranslateMatrix(vec3()-vec3(0.7, 0.5, 1)));
+
+	QuadraticShape egg(gold, mat4(1,0,0,0, 0,1,0,0, 0,0,2,0, 0,0,0,-2));
+
+	world.shapes.push_back(&egg);
+	world.shapes.push_back(&ball);
+	world.shapes.push_back(&room);
 	world.lights.push_back(Light(vec3(1, 1, 2), vec3(1, 1, 1)));
 
 

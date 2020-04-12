@@ -176,7 +176,7 @@ public:
 class World;
 class Material {
 public:
-	virtual vec3 trace(const World& world, vec3 point, vec3 normal, vec3 eyeDir) const = 0;
+	virtual vec3 trace(const World& world, vec3 point, vec3 normal, vec3 eyeDir, int depth) const = 0;
 };
 
 class DiffuseMaterial : public Material {
@@ -184,14 +184,14 @@ class DiffuseMaterial : public Material {
 	float shine;
 public:
 	DiffuseMaterial(vec3 ka, vec3 ks, vec3 kd, float shine) : ka(ka), ks(ks), kd(kd), shine(shine) {}
-	vec3 trace(const World& world, vec3 point, vec3 normal, vec3 eyeDir) const;
+	vec3 trace(const World& world, vec3 point, vec3 normal, vec3 eyeDir, int depth) const;
 };
 
 class ReflectiveMaterial : public Material {
 	vec3 n, k;
 public:
 	ReflectiveMaterial(vec3 n, vec3 k) : n(n), k(k) {}
-	vec3 trace(const World& world, vec3 point, vec3 normal, vec3 eyeDir) const;
+	vec3 trace(const World& world, vec3 point, vec3 normal, vec3 eyeDir, int depth) const;
 };
 
 class Shape {
@@ -219,7 +219,7 @@ public:
 
 class World {
 public:
-	std::vector<Light> lights;
+	float holeHeight, holeRadius;
 	std::vector<Shape*> shapes;
 	vec3 ambLight;
 	vec3 sky;
@@ -227,7 +227,8 @@ public:
 	vec3 sunDir;
 
 	Hit intersect(Ray ray) const;
-	vec3 trace(Ray ray) const;
+	vec3 trace(Ray ray, int depth) const;
+	vec3 rndHolePoint() const;
 };
 
 
@@ -260,24 +261,32 @@ Hit QuadraticShape::intersect(Ray ray) const {
 	return hit;
 }
 
+const int n = 3;
 
-vec3 DiffuseMaterial::trace(const World& world, vec3 point, vec3 normal, vec3 eyeDir) const {
+vec3 DiffuseMaterial::trace(const World& world, vec3 point, vec3 normal, vec3 eyeDir, int depth) const {
 	vec3 color;
 	color = color + ka * world.ambLight;
 
-	for (auto& light : world.lights) {
-		vec3 lightDir = normalize(light.pos - point);
-		Hit hitToLight = world.intersect(Ray(point + normal * 0.01, lightDir));
-		bool shadow = false;
-		if (hitToLight.shape) {
-			float lightDist = length(light.pos - point);
-			if (hitToLight.t < lightDist)
-				continue;
-		}
 
-		//inLight = inLight / (lightDir)
-		color = color + light.color * (kd * std::fmax(dot(normal, lightDir), 0));
-		color = color + light.color * (ks * pow(std::fmax(dot(normalize((lightDir + eyeDir) / 2), normal), 0), shine));
+	for (int i = 0; i < n; i++) {
+		vec3 lightPoint = world.rndHolePoint();
+		vec3 lightDir = normalize(lightPoint - point);
+		float lightDist = length(lightPoint - point);
+		float holeArea = world.holeRadius * world.holeRadius * M_PI;
+		float lightAngle = std::fabs(lightDir.y);
+
+		Ray rayToLight(point + normal * 0.03, lightDir);
+
+		Hit hitToLight = world.intersect(rayToLight);
+		if (hitToLight.shape && hitToLight.t < lightDist)
+			continue;
+
+		vec3 lightColor = world.trace(rayToLight, depth + 1);
+
+		lightColor = lightColor * holeArea / n * lightAngle / (lightDist * lightDist);
+
+		color = color + lightColor * (kd * std::fmax(dot(normal, lightDir), 0));
+		color = color + lightColor * (ks * pow(std::fmax(dot(normalize((lightDir + eyeDir) / 2), normal), 0), shine));
 	}
 
 	return color;
@@ -287,7 +296,7 @@ vec3 operator/(vec3 a, vec3 b) {
 	return vec3(a.x / b.x, a.y / b.y, a.z / b.z);
 }
 
-vec3 ReflectiveMaterial::trace(const World& world, vec3 point, vec3 normal, vec3 eyeDir) const {
+vec3 ReflectiveMaterial::trace(const World& world, vec3 point, vec3 normal, vec3 eyeDir, int depth) const {
 	float cosAngle = dot(normal, eyeDir);
 	vec3 reflectDir = cosAngle * normal * 2 - eyeDir;
 
@@ -295,7 +304,7 @@ vec3 ReflectiveMaterial::trace(const World& world, vec3 point, vec3 normal, vec3
 	vec3 f0 = ((n - one) * (n - one) + k * k) / ((n + one) * (n + one) + k * k);
 	vec3 f = f0 + (one - f0) * pow(1 - cosAngle, 5);
 
-	return world.trace(Ray(point + normal * 0.01, reflectDir)) * f;
+	return world.trace(Ray(point + normal * 0.01, reflectDir), depth + 1) * f;
 }
 
 Hit World::intersect(Ray ray) const {
@@ -305,12 +314,18 @@ Hit World::intersect(Ray ray) const {
 		if (!hit.shape || hit.t >= firstHit.t)
 			continue;
 
+		if (hit.point.y > holeHeight - 0.05f /*&& length(vec2(hit.point.x, hit.point.z)) < holeRadius*/)
+			continue;
+
 		firstHit = hit;
 	}
 	return firstHit;
 }
 
-vec3 World::trace(Ray ray) const {
+vec3 World::trace(Ray ray, int depth) const {
+	if (depth > 4)
+		return vec3(0, 0, 0);
+
 	Hit hit = intersect(ray);
 
 	if (hit.shape)
@@ -319,7 +334,7 @@ vec3 World::trace(Ray ray) const {
 		if (dot(eyeDir, hit.normal) < 0)
 			hit.normal = -hit.normal;
 
-		return hit.shape->getMaterial().trace(*this, hit.point, hit.normal, eyeDir);
+		return hit.shape->getMaterial().trace(*this, hit.point, hit.normal, eyeDir, depth + 1);
 	}
 	else
 	{
@@ -327,12 +342,23 @@ vec3 World::trace(Ray ray) const {
 	}
 }
 
+vec3 World::rndHolePoint() const {
+	float x, y;
+	do {
+		x = (float)rand() / RAND_MAX;
+		y = (float)rand() / RAND_MAX;
+	}
+	while (x * x + y * y > 1);
+	return vec3(x * holeRadius, y * holeRadius, holeHeight);
+}
+
 World world;
-Camera camera(vec3(0, 0, 2), vec3(0, 0, -1), vec3(0, 1, 0), vec3(1, 0, 0));
+Camera camera(vec3(0, 0, 1.5), vec3(0, 0, -1), vec3(0, 1, 0), vec3(1, 0, 0));
 std::vector<vec4> image;
 
 // Initialization, create an OpenGL context
 void onInitialization() {
+	srand(time(NULL));
 	glViewport(0, 0, windowWidth, windowHeight);
 	gpuProgram.create(vertexSource, fragmentSource, "fragmentColor");
 	fullScreenTextQuad.genTexture();
@@ -341,23 +367,27 @@ void onInitialization() {
 	DiffuseMaterial greenDiffuseMaterial(vec3(0, 1, 0), vec3(1, 1, 1), vec3(0, 1 ,0), 30);
 	ReflectiveMaterial gold(vec3(0.17, 0.35, 1.5), vec3(3.1, 2.7, 1.9));
 
-	world.ambLight = vec3(0.2, 0.2, 0.2);
+	world.ambLight = vec3(0.05, 0.05, 0.05);//vec3(0.2, 0.2, 0.2);
 	world.sky = vec3(0.2, 0.2, 0.6);
-	world.sun = vec3(1, 1, 0.6);
-	world.sunDir = normalize(vec3(1, 1, 1));
+	world.sun = vec3(3, 3, 1.8) * 10;
+	world.sunDir = normalize(vec3(0	, 1, 0));
+	world.holeHeight = 0.6;
+	world.holeRadius = 0.2;
 
 	QuadraticShape room(redDiffuseMaterial);
-	room.transform(ScaleMatrix(vec3(0.3, 0.3, 0.3)));
+	room.transform(ScaleMatrix(vec3(0.5, 1, 0.5)));
 
-	QuadraticShape ball(greenDiffuseMaterial, mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,-0.04));
-	ball.transform(TranslateMatrix(vec3()-vec3(0.7, 0.5, 1)));
+	QuadraticShape ball(greenDiffuseMaterial);
+	ball.transform(ScaleMatrix(vec3(20, 20, 20)));
+	ball.transform(TranslateMatrix(vec3()-vec3(-0.2, -0.4, 0.4)));
 
 	QuadraticShape egg(gold, mat4(1,0,0,0, 0,1,0,0, 0,0,2,0, 0,0,0,-2));
+	egg.transform(ScaleMatrix(vec3(3, 3, 3)));
+	egg.transform(TranslateMatrix(vec3()-vec3(0.3, -0.5, 0)));
 
 	world.shapes.push_back(&egg);
 	world.shapes.push_back(&ball);
 	world.shapes.push_back(&room);
-	world.lights.push_back(Light(vec3(1, 1, 2), vec3(1, 1, 1)));
 
 
 	for (int j = 0; j < windowHeight; j++) {
@@ -365,7 +395,7 @@ void onInitialization() {
 			float x = (float)i / windowWidth * 2 - 1;
 			float y = (float)j / windowHeight * 2 - 1;
 
-			image.push_back(toHomogeneousPoint(world.trace(camera.getRay(x, y))));
+			image.push_back(toHomogeneousPoint(world.trace(camera.getRay(x, y), 0)));
 		}
 	}
 }

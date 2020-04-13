@@ -399,26 +399,14 @@ void onInitialization() {
 
 	QuadraticShape tube(silver, mat4(1,0,0,0, 0,-1,0,0, 0,0,1,0, 0,0,0,-1));
 	tube.scale(0.1, 0.3, 0.1);
-	//tube.translate(0, -0.5, -0.3);
+
+	Hit holeHit = room.intersect(Ray(vec3(world.holeRadius, 100, 0), vec3(0, -1, 0)));
+	world.holeHeight = holeHit.point.y;
 
 	world.shapes.push_back(&egg);
 	world.shapes.push_back(&ball);
 	world.shapes.push_back(&room);
 	//world.shapes.push_back(&tube);
-
-
-	vec4 yvec(0, 1, 0, 0);
-	vec4 xzvec(world.holeRadius, 0, 0, 1);
-	float a = dot(yvec * room.Q, yvec);
-	float b = dot(yvec * room.Q, xzvec) + dot(xzvec * room.Q, yvec);
-	float c = dot(xzvec * room.Q, xzvec);
-	float disc = b * b - 4 * a * c;
-	float discSqrt = sqrt(disc);
-	float t1 = (-b + discSqrt) / (2 * a);
-	float t2 = (-b - discSqrt) / (2 * a);
-	world.holeHeight = std::fabs(t1);
-	printf("world.holeHeight %f\n", world.holeHeight);
-
 
 	for (int j = 0; j < windowHeight; j++) {
 		for (int i = 0; i < windowWidth; i++) {

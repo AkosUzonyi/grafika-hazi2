@@ -219,6 +219,27 @@ public:
 	}
 };
 
+class YBoundedShape : public Shape {
+	const Shape& shape;
+	float ymin, ymax;
+public:
+	YBoundedShape(const Shape& shape, float ymin, float ymax) : Shape(shape.getMaterial()), shape(shape), ymin(ymin), ymax(ymax) {}
+
+	Hit intersect(Ray ray) const {
+		Hit hit = shape.intersect(ray);
+
+		if (hit.point.y < ymin || hit.point.y > ymax)
+			hit.shape = nullptr;
+
+		return hit;
+	}
+
+	void transform(mat4 M) {
+		printf("YBoundedShape::transform unsupported");
+		exit(1);
+	}
+};
+
 class QuadraticShape : public Shape {
 public:
 	mat4 Q;
@@ -365,7 +386,7 @@ vec3 World::rndHolePoint() const {
 }
 
 World world;
-Camera camera(vec3(0, 0, 1.9), vec3(0, 0, -1), vec3(0, 1, 0), vec3(1, 0, 0));
+Camera camera(vec3(0, 1, 3.9), vec3(0, 0, -1), vec3(0, 1, 0), vec3(1, 0, 0));
 std::vector<vec4> image;
 
 // Initialization, create an OpenGL context
@@ -383,7 +404,7 @@ void onInitialization() {
 	world.ambLight = vec3(0.2, 0.2, 0.2);//vec3(0.2, 0.2, 0.2);
 	world.sky = vec3(0.2, 0.2, 0.6);
 	world.sun = vec3(3, 3, 1.8);
-	world.sunDir = normalize(vec3(-1, 1, 1));
+	world.sunDir = normalize(vec3(0, 1, 1));
 	world.holeRadius = 0.6;
 
 	QuadraticShape room(redDiffuseMaterial);
@@ -398,15 +419,21 @@ void onInitialization() {
 	egg.translate(0.5, -0.5, 0.5);
 
 	QuadraticShape tube(silver, mat4(1,0,0,0, 0,-1,0,0, 0,0,1,0, 0,0,0,-1));
-	tube.scale(0.1, 0.3, 0.1);
+	tube.scale(1, 4, 1);
 
 	Hit holeHit = room.intersect(Ray(vec3(world.holeRadius, 100, 0), vec3(0, -1, 0)));
 	world.holeHeight = holeHit.point.y;
 
+	Hit tubeHit = tube.intersect(Ray(vec3(100, world.holeHeight, 0), vec3(-1, 0, 0)));
+	float tubeScale = world.holeRadius / tubeHit.point.x;
+	tube.scale(tubeScale, 1, tubeScale);
+
+	YBoundedShape boundedTube(tube, world.holeHeight, world.holeHeight + 2);
+
 	world.shapes.push_back(&egg);
 	world.shapes.push_back(&ball);
 	world.shapes.push_back(&room);
-	//world.shapes.push_back(&tube);
+	world.shapes.push_back(&boundedTube);
 
 	for (int j = 0; j < windowHeight; j++) {
 		for (int i = 0; i < windowWidth; i++) {

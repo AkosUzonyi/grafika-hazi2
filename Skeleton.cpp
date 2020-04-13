@@ -273,7 +273,7 @@ Hit QuadraticShape::intersect(Ray ray) const {
 	return hit;
 }
 
-const int n = 1;
+const int n = 3;
 
 vec3 DiffuseMaterial::trace(const World& world, vec3 point, vec3 normal, vec3 eyeDir, int depth) const {
 	vec3 color;
@@ -357,8 +357,8 @@ vec3 World::trace(Ray ray, int depth) const {
 vec3 World::rndHolePoint() const {
 	float x, z;
 	do {
-		x = (float)rand() / RAND_MAX;
-		z = (float)rand() / RAND_MAX;
+		x = (float)rand() / RAND_MAX * 2 - 1;
+		z = (float)rand() / RAND_MAX * 2 - 1;
 	}
 	while (x * x + z * z > 1);
 	return vec3(x * holeRadius, holeHeight, z * holeRadius);

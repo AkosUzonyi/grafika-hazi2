@@ -127,6 +127,10 @@ vec4 toHomogeneousVector(vec3 v) {
 	return vec4(v.x, v.y, v.z, 0);
 }
 
+float lengthSq(vec3 v) {
+	return dot(v, v);
+}
+
 struct Light {
 	vec3 pos;
 	vec3 color;
@@ -304,19 +308,19 @@ vec3 DiffuseMaterial::trace(const World& world, vec3 point, vec3 normal, vec3 ey
 	for (int i = 0; i < n; i++) {
 		vec3 lightPoint = world.rndHolePoint();
 		vec3 lightDir = normalize(lightPoint - point);
-		float lightDist = length(lightPoint - point);
+		float lightDistSq = dot(lightPoint - point, lightPoint - point);
 		float holeArea = world.holeRadius * world.holeRadius * M_PI;
 		float lightAngle = std::fabs(lightDir.y);
 
 		Ray rayToLight(point + normal * 0.03, lightDir);
 
 		Hit hitToLight = world.intersect(rayToLight);
-		if (hitToLight.shape && hitToLight.t < lightDist)
+		if (hitToLight.shape && hitToLight.t * hitToLight.t < lightDistSq)
 			continue;
 
 		vec3 lightColor = world.trace(rayToLight, depth + 1);
 
-		lightColor = lightColor * holeArea / n * lightAngle / (lightDist * lightDist);
+		lightColor = lightColor * holeArea / n * lightAngle / lightDistSq;
 
 		color = color + lightColor * (kd * std::fmax(dot(normal, lightDir), 0));
 		color = color + lightColor * (ks * pow(std::fmax(dot(normalize((lightDir + eyeDir) / 2), normal), 0), shine));
@@ -347,7 +351,7 @@ Hit World::intersect(Ray ray) const {
 		if (!hit.shape || hit.t >= firstHit.t)
 			continue;
 
-		if (hit.point.y > holeHeight && length(vec2(hit.point.x, hit.point.z)) < holeRadius)
+		if (hit.point.y > holeHeight && lengthSq(vec2(hit.point.x, hit.point.z)) < holeRadius * holeRadius)
 			continue;
 
 		firstHit = hit;
@@ -386,7 +390,7 @@ vec3 World::rndHolePoint() const {
 }
 
 World world;
-Camera camera(vec3(0, 1, 3.9), vec3(0, 0, -1), vec3(0, 1, 0), vec3(1, 0, 0));
+Camera camera(vec3(0, 0, 1.9), vec3(0, 0, -1), vec3(0, 1, 0), vec3(1, 0, 0));
 std::vector<vec4> image;
 
 // Initialization, create an OpenGL context

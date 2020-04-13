@@ -355,13 +355,13 @@ vec3 World::trace(Ray ray, int depth) const {
 }
 
 vec3 World::rndHolePoint() const {
-	float x, y;
+	float x, z;
 	do {
 		x = (float)rand() / RAND_MAX;
-		y = (float)rand() / RAND_MAX;
+		z = (float)rand() / RAND_MAX;
 	}
-	while (x * x + y * y > 1);
-	return vec3(x * holeRadius, y * holeRadius, holeHeight);
+	while (x * x + z * z > 1);
+	return vec3(x * holeRadius, holeHeight, z * holeRadius);
 }
 
 World world;
@@ -382,8 +382,8 @@ void onInitialization() {
 
 	world.ambLight = vec3(0.2, 0.2, 0.2);//vec3(0.2, 0.2, 0.2);
 	world.sky = vec3(0.2, 0.2, 0.6);
-	world.sun = vec3(3, 3, 1.8) * 10;
-	world.sunDir = normalize(vec3(0, 1, 1));
+	world.sun = vec3(3, 3, 1.8);
+	world.sunDir = normalize(vec3(-1, 1, 1));
 	world.holeRadius = 0.6;
 
 	QuadraticShape room(redDiffuseMaterial);

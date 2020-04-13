@@ -202,6 +202,18 @@ public:
 	virtual Hit intersect(Ray ray) const = 0;
 	virtual void transform(mat4 M) = 0;
 
+	void scale(float x, float y, float z) {
+		transform(ScaleMatrix(vec3(1 / x, 1 / y, 1 / z)));
+	}
+
+	void rotate(float a, float x, float y, float z) {
+		transform(RotationMatrix(-a, vec3(x, y, z)));
+	}
+
+	void translate(float x, float y, float z) {
+		transform(TranslateMatrix(vec3(-x, -y, -z)));
+	}
+
 	const Material& getMaterial() const {
 		return material;
 	}
@@ -374,15 +386,15 @@ void onInitialization() {
 	world.holeRadius = 0.6;
 
 	QuadraticShape room(redDiffuseMaterial);
-	room.transform(ScaleMatrix(vec3(0.5, 1, 0.5)));
+	room.scale(2, 1, 2);
 
 	QuadraticShape ball(greenDiffuseMaterial);
-	ball.transform(ScaleMatrix(vec3(20, 20, 20)));
-	ball.transform(TranslateMatrix(vec3()-vec3(-0.2, -0.4, 0.4)));
+	ball.scale(0.05, 0.05, 0.05);
+	ball.translate(-0.2, -0.4, 0.4);
 
 	QuadraticShape egg(gold, mat4(1,0,0,0, 0,1,0,0, 0,0,2,0, 0,0,0,-2));
-	egg.transform(ScaleMatrix(vec3(3, 3, 3)));
-	egg.transform(TranslateMatrix(vec3()-vec3(0.3, -0.5, 0)));
+	egg.scale(0.3, 0.3, 0.3);
+	egg.translate(0.3, -0.5, 0);
 
 	world.shapes.push_back(&egg);
 	world.shapes.push_back(&ball);

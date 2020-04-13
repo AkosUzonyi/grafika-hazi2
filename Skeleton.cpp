@@ -208,9 +208,9 @@ public:
 };
 
 class QuadraticShape : public Shape {
+public:
 	mat4 Q;
 
-public:
 	QuadraticShape(const Material& material, const mat4& Q = mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,-1)) : Shape(material), Q(Q) {}
 
 	void transform(mat4 M);
@@ -314,7 +314,7 @@ Hit World::intersect(Ray ray) const {
 		if (!hit.shape || hit.t >= firstHit.t)
 			continue;
 
-		if (hit.point.y > holeHeight - 0.05f /*&& length(vec2(hit.point.x, hit.point.z)) < holeRadius*/)
+		if (hit.point.y > holeHeight && length(vec2(hit.point.x, hit.point.z)) < holeRadius)
 			continue;
 
 		firstHit = hit;
@@ -353,7 +353,7 @@ vec3 World::rndHolePoint() const {
 }
 
 World world;
-Camera camera(vec3(0, 0, 1.5), vec3(0, 0, -1), vec3(0, 1, 0), vec3(1, 0, 0));
+Camera camera(vec3(0, 0, 1.9), vec3(0, 0, -1), vec3(0, 1, 0), vec3(1, 0, 0));
 std::vector<vec4> image;
 
 // Initialization, create an OpenGL context
@@ -371,8 +371,7 @@ void onInitialization() {
 	world.sky = vec3(0.2, 0.2, 0.6);
 	world.sun = vec3(3, 3, 1.8) * 10;
 	world.sunDir = normalize(vec3(0	, 1, 0));
-	world.holeHeight = 0.6;
-	world.holeRadius = 0.2;
+	world.holeRadius = 0.6;
 
 	QuadraticShape room(redDiffuseMaterial);
 	room.transform(ScaleMatrix(vec3(0.5, 1, 0.5)));
@@ -388,6 +387,19 @@ void onInitialization() {
 	world.shapes.push_back(&egg);
 	world.shapes.push_back(&ball);
 	world.shapes.push_back(&room);
+
+
+	vec4 yvec(0, 1, 0, 0);
+	vec4 xzvec(world.holeRadius, 0, 0, 1);
+	float a = dot(yvec * room.Q, yvec);
+	float b = dot(yvec * room.Q, xzvec) + dot(xzvec * room.Q, yvec);
+	float c = dot(xzvec * room.Q, xzvec);
+	float disc = b * b - 4 * a * c;
+	float discSqrt = sqrt(disc);
+	float t1 = (-b + discSqrt) / (2 * a);
+	float t2 = (-b - discSqrt) / (2 * a);
+	world.holeHeight = std::fabs(t1);
+	printf("world.holeHeight %f\n", world.holeHeight);
 
 
 	for (int j = 0; j < windowHeight; j++) {

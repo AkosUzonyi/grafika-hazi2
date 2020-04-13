@@ -273,7 +273,7 @@ Hit QuadraticShape::intersect(Ray ray) const {
 	return hit;
 }
 
-const int n = 3;
+const int n = 1;
 
 vec3 DiffuseMaterial::trace(const World& world, vec3 point, vec3 normal, vec3 eyeDir, int depth) const {
 	vec3 color;
@@ -375,30 +375,36 @@ void onInitialization() {
 	gpuProgram.create(vertexSource, fragmentSource, "fragmentColor");
 	fullScreenTextQuad.genTexture();
 
-	DiffuseMaterial redDiffuseMaterial(vec3(1, 0, 0), vec3(1, 1, 1), vec3(1, 0 ,0), 6);
+	DiffuseMaterial redDiffuseMaterial(vec3(1, 0.8, 0.8), vec3(1, 1, 1), vec3(1, 0.8, 0.8), 6);
 	DiffuseMaterial greenDiffuseMaterial(vec3(0, 1, 0), vec3(1, 1, 1), vec3(0, 1 ,0), 30);
 	ReflectiveMaterial gold(vec3(0.17, 0.35, 1.5), vec3(3.1, 2.7, 1.9));
+	ReflectiveMaterial silver(vec3(0.14, 0.16, 0.13), vec3(4.1, 2.3, 3.1));
 
-	world.ambLight = vec3(0.05, 0.05, 0.05);//vec3(0.2, 0.2, 0.2);
+	world.ambLight = vec3(0.2, 0.2, 0.2);//vec3(0.2, 0.2, 0.2);
 	world.sky = vec3(0.2, 0.2, 0.6);
 	world.sun = vec3(3, 3, 1.8) * 10;
-	world.sunDir = normalize(vec3(0	, 1, 0));
+	world.sunDir = normalize(vec3(0, 1, 1));
 	world.holeRadius = 0.6;
 
 	QuadraticShape room(redDiffuseMaterial);
 	room.scale(2, 1, 2);
 
 	QuadraticShape ball(greenDiffuseMaterial);
-	ball.scale(0.05, 0.05, 0.05);
-	ball.translate(-0.2, -0.4, 0.4);
+	ball.scale(0.1, 0.1, 0.1);
+	ball.translate(-0.2, -0.4, 1);
 
-	QuadraticShape egg(gold, mat4(1,0,0,0, 0,1,0,0, 0,0,2,0, 0,0,0,-2));
-	egg.scale(0.3, 0.3, 0.3);
-	egg.translate(0.3, -0.5, 0);
+	QuadraticShape egg(gold);
+	egg.scale(0.5, 0.3, 0.5);
+	egg.translate(0.5, -0.5, 0.5);
+
+	QuadraticShape tube(silver, mat4(1,0,0,0, 0,-1,0,0, 0,0,1,0, 0,0,0,-1));
+	tube.scale(0.1, 0.3, 0.1);
+	//tube.translate(0, -0.5, -0.3);
 
 	world.shapes.push_back(&egg);
 	world.shapes.push_back(&ball);
 	world.shapes.push_back(&room);
+	//world.shapes.push_back(&tube);
 
 
 	vec4 yvec(0, 1, 0, 0);

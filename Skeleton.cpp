@@ -386,7 +386,7 @@ vec3 World::rndHolePoint() const {
 }
 
 World world;
-Camera camera(vec3(0, 1, 3.9), vec3(0, 0, -1), vec3(0, 1, 0), vec3(1, 0, 0));
+Camera camera(vec3(0, 0, 1.9), vec3(0, 0, -1), vec3(0, 1, 0), vec3(1, 0, 0));
 std::vector<vec4> image;
 
 // Initialization, create an OpenGL context

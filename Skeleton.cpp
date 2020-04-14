@@ -254,6 +254,7 @@ class World {
 public:
 	float holeHeight, holeRadius;
 	std::vector<Shape*> shapes;
+	std::vector<vec3> holePoints;
 	vec3 ambLight;
 	vec3 sky;
 	vec3 sun;
@@ -261,9 +262,7 @@ public:
 
 	Hit intersect(Ray ray) const;
 	vec3 trace(Ray ray, int depth) const;
-	vec3 rndHolePoint() const;
 };
-
 
 
 
@@ -300,9 +299,7 @@ vec3 DiffuseMaterial::trace(const World& world, vec3 point, vec3 normal, vec3 ey
 	vec3 color;
 	color = color + ka * world.ambLight;
 
-
-	for (int i = 0; i < n; i++) {
-		vec3 lightPoint = world.rndHolePoint();
+	for (vec3 lightPoint : world.holePoints) {
 		vec3 lightDir = normalize(lightPoint - point);
 		float lightDist = length(lightPoint - point);
 		float holeArea = world.holeRadius * world.holeRadius * M_PI;
@@ -375,16 +372,6 @@ vec3 World::trace(Ray ray, int depth) const {
 	}
 }
 
-vec3 World::rndHolePoint() const {
-	float x, z;
-	do {
-		x = (float)rand() / RAND_MAX * 2 - 1;
-		z = (float)rand() / RAND_MAX * 2 - 1;
-	}
-	while (x * x + z * z > 1);
-	return vec3(x * holeRadius, holeHeight, z * holeRadius);
-}
-
 World world;
 Camera camera(vec3(0, 0, 1.9), vec3(0, 0, -1), vec3(0, 1, 0), vec3(1, 0, 0));
 std::vector<vec4> image;
@@ -434,6 +421,17 @@ void onInitialization() {
 	world.shapes.push_back(&ball);
 	world.shapes.push_back(&room);
 	world.shapes.push_back(&boundedTube);
+
+	for (int i = 0; i < n; i++) {
+		float x, z;
+		do {
+			x = (float)rand() / RAND_MAX * 2 - 1;
+			z = (float)rand() / RAND_MAX * 2 - 1;
+		}
+		while (x * x + z * z > 1);
+		world.holePoints.push_back(vec3(x * world.holeRadius, world.holeHeight, z * world.holeRadius));
+	}
+
 
 	for (int j = 0; j < windowHeight; j++) {
 		for (int i = 0; i < windowWidth; i++) {

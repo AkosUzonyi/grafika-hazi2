@@ -104,9 +104,6 @@ public:
 FullScreenTextQuad fullScreenTextQuad;
 
 
-
-mat4 identityMat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1);
-
 mat4 transpose(const mat4& M) {
 	mat4 Mt;
 	for (int i = 0; i < 4; i++)
@@ -126,13 +123,6 @@ vec4 toHomogeneousPoint(vec3 v) {
 vec4 toHomogeneousVector(vec3 v) {
 	return vec4(v.x, v.y, v.z, 0);
 }
-
-struct Light {
-	vec3 pos;
-	vec3 color;
-
-	Light(vec3 pos, vec3 color) : pos(pos), color(color) {}
-};
 
 class Shape;
 struct Hit {

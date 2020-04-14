@@ -294,6 +294,7 @@ Hit QuadraticShape::intersect(Ray ray) const {
 }
 
 const int n = 3;
+const float eps = 0.001;
 
 vec3 DiffuseMaterial::trace(const World& world, vec3 point, vec3 normal, vec3 eyeDir, int depth) const {
 	vec3 color;
@@ -305,7 +306,7 @@ vec3 DiffuseMaterial::trace(const World& world, vec3 point, vec3 normal, vec3 ey
 		float holeArea = world.holeRadius * world.holeRadius * M_PI;
 		float lightAngle = std::fabs(lightDir.y);
 
-		Ray rayToLight(point + normal * 0.03, lightDir);
+		Ray rayToLight(point + normal * eps, lightDir);
 
 		Hit hitToLight = world.intersect(rayToLight);
 		if (hitToLight.shape && hitToLight.t < lightDist)
@@ -334,7 +335,7 @@ vec3 ReflectiveMaterial::trace(const World& world, vec3 point, vec3 normal, vec3
 	vec3 f0 = ((n - one) * (n - one) + k * k) / ((n + one) * (n + one) + k * k);
 	vec3 f = f0 + (one - f0) * pow(1 - cosAngle, 5);
 
-	return world.trace(Ray(point + normal * 0.01, reflectDir), depth + 1) * f;
+	return world.trace(Ray(point + normal * eps, reflectDir), depth + 1) * f;
 }
 
 Hit World::intersect(Ray ray) const {

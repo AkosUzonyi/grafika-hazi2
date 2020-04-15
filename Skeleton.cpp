@@ -364,7 +364,7 @@ vec3 World::trace(Ray ray, int depth) const {
 }
 
 World world;
-Camera camera(vec3(0, 0, 1.9), vec3(0, 0, -1), vec3(0, 1, 0), vec3(1, 0, 0));
+Camera camera(vec3(0, 0, 1.8), vec3(0, 0, -1), vec3(0, 1, 0), vec3(1, 0, 0));
 std::vector<vec4> image;
 
 // Initialization, create an OpenGL context
@@ -379,9 +379,9 @@ void onInitialization() {
 	ReflectiveMaterial gold(vec3(0.17, 0.35, 1.5), vec3(3.1, 2.7, 1.9));
 	ReflectiveMaterial silver(vec3(0.14, 0.16, 0.13), vec3(4.1, 2.3, 3.1));
 
-	world.ambLight = vec3(0.2, 0.2, 0.2);//vec3(0.2, 0.2, 0.2);
+	world.ambLight = vec3(0.2, 0.2, 0.2);
 	world.sky = vec3(0.2, 0.2, 0.6);
-	world.sun = vec3(3, 3, 1.8);
+	world.sun = vec3(5, 5, 2);
 	world.sunDir = normalize(vec3(0, 1, 1));
 	world.holeRadius = 0.6;
 
@@ -392,9 +392,9 @@ void onInitialization() {
 	ball.scale(0.1, 0.1, 0.1);
 	ball.translate(-0.2, -0.4, 1);
 
-	QuadraticShape egg(gold);
-	egg.scale(0.5, 0.3, 0.5);
-	egg.translate(0.5, -0.5, 0.5);
+	QuadraticShape mirror(gold, mat4(1,0,0,0, 0,0,0,1, 0,0,1,0, 0,1,0,0));
+	mirror.scale(0.5, 1, 0.5);
+	mirror.translate(0.5, 0, -0.5);
 
 	QuadraticShape tube(silver, mat4(1,0,0,0, 0,-1,0,0, 0,0,1,0, 0,0,0,-1));
 	tube.scale(1, 4, 1);
@@ -408,7 +408,7 @@ void onInitialization() {
 
 	YBoundedShape boundedTube(tube, world.holeHeight, world.holeHeight + 2);
 
-	world.shapes.push_back(&egg);
+	world.shapes.push_back(&mirror);
 	world.shapes.push_back(&ball);
 	world.shapes.push_back(&room);
 	world.shapes.push_back(&boundedTube);

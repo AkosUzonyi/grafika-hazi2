@@ -251,7 +251,7 @@ public:
 	vec3 sunDir;
 
 	Hit intersect(Ray ray) const;
-	vec3 trace(Ray ray, int depth) const;
+	vec3 trace(Ray ray, int depth, float minT = 0) const;
 };
 
 
@@ -297,12 +297,7 @@ vec3 DiffuseMaterial::trace(const World& world, vec3 point, vec3 normal, vec3 ey
 		float lightAngle = std::fabs(lightDir.y);
 
 		Ray rayToLight(point + normal * eps, lightDir);
-
-		Hit hitToLight = world.intersect(rayToLight);
-		if (hitToLight.shape && hitToLight.t < lightDist)
-			continue;
-
-		vec3 lightColor = world.trace(rayToLight, depth + 1);
+		vec3 lightColor = world.trace(rayToLight, depth + 1, lightDist);
 
 		lightColor = lightColor * holeArea / n * lightAngle / (lightDist * lightDist);
 
@@ -343,7 +338,7 @@ Hit World::intersect(Ray ray) const {
 	return firstHit;
 }
 
-vec3 World::trace(Ray ray, int depth) const {
+vec3 World::trace(Ray ray, int depth, float minT) const {
 	if (depth > 4)
 		return vec3(0, 0, 0);
 
@@ -351,6 +346,9 @@ vec3 World::trace(Ray ray, int depth) const {
 
 	if (hit.shape)
 	{
+		if (hit.t < minT)
+			return vec3();
+
 		vec3 eyeDir = -cutToVec3(ray.dir);
 		if (dot(eyeDir, hit.normal) < 0)
 			hit.normal = -hit.normal;

@@ -209,6 +209,9 @@ public:
 	}
 };
 
+#include<chrono>
+long ttt;
+
 class YBoundedShape : public Shape {
 	const Shape& shape;
 	float ymin, ymax;
@@ -262,8 +265,10 @@ void QuadraticShape::transform(mat4 M) {
 
 Hit QuadraticShape::intersect(Ray ray) const {
 	Hit hit;
+	auto start = std::chrono::high_resolution_clock::now();
 	float a = dot(ray.dir * Q, ray.dir);
 	float b = dot(ray.dir * Q, ray.origin) + dot(ray.origin * Q, ray.dir);
+	ttt += std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now() - start).count();
 	float c = dot(ray.origin * Q, ray.origin);
 	float disc = b * b - 4 * a * c;
 	if (disc < 0)
@@ -330,15 +335,11 @@ vec3 ReflectiveMaterial::trace(const World& world, vec3 point, vec3 normal, vec3
 
 Hit World::intersect(Ray ray) const {
 	Hit firstHit;
-	for (auto shape : shapes) {
+	for (int i = 0; i < shapes.size(); i++) {
+		Shape* shape = shapes[i];
 		Hit hit = shape->intersect(ray);
-		if (!hit.shape || hit.t >= firstHit.t)
-			continue;
-
-		if (hit.point.y > holeHeight && length(vec2(hit.point.x, hit.point.z)) < holeRadius)
-			continue;
-
-		firstHit = hit;
+		if (hit.shape && hit.t < firstHit.t && !(hit.point.y > holeHeight && hit.point.x * hit.point.x + hit.point.z * hit.point.z < holeRadius * holeRadius))
+			firstHit = hit;
 	}
 	return firstHit;
 }
@@ -423,15 +424,22 @@ void onInitialization() {
 		world.holePoints.push_back(vec3(x * world.holeRadius, world.holeHeight, z * world.holeRadius));
 	}
 
+	auto start = std::chrono::high_resolution_clock::now();
 
 	for (int j = 0; j < windowHeight; j++) {
 		for (int i = 0; i < windowWidth; i++) {
 			float x = (float)i / windowWidth * 2 - 1;
 			float y = (float)j / windowHeight * 2 - 1;
 
-			image.push_back(toHomogeneousPoint(world.trace(camera.getRay(x, y), 0)));
+
+			vec4 color = toHomogeneousPoint(world.trace(camera.getRay(x, y), 0));
+
+			image.push_back(color);
+
 		}
 	}
+	auto end = std::chrono::high_resolution_clock::now();
+	printf("%ld %ld\n", ttt / 1000000, std::chrono::duration_cast<std::chrono::nanoseconds>(end - start).count() / 1000000);
 }
 
 // Window has become invalid: Redraw

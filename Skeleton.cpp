@@ -65,11 +65,11 @@ class FullScreenTextQuad {
 	unsigned int vao = 0, textureId = 0;
 public:
 	void genTexture() {
-		glGenVertexArrays(1, &vao);	// get 1 vao id
-		glBindVertexArray(vao);		// make it active
+		glGenVertexArrays(1, &vao);
+		glBindVertexArray(vao);
 
 		unsigned int vbo;
-		glGenBuffers(1, &vbo);	// Generate 1 buffer
+		glGenBuffers(1, &vbo);
 		glBindBuffer(GL_ARRAY_BUFFER, vbo);
 		float vertexCoords[] = { -1,-1,1,-1,1,1,-1,1 };
 		glBufferData(GL_ARRAY_BUFFER, sizeof(vertexCoords), vertexCoords, GL_STATIC_DRAW);

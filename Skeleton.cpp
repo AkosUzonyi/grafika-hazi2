@@ -258,7 +258,7 @@ Hit QuadraticShape::intersect(Ray ray) const {
 	return hit;
 }
 
-const int n = 3;
+const int n = 5;
 const float eps = 0.001;
 
 vec3 DiffuseMaterial::trace(const World& world, vec3 point, vec3 normal, vec3 eyeDir, int depth) const {
@@ -314,7 +314,7 @@ Hit World::intersect(Ray ray) const {
 }
 
 vec3 World::trace(Ray ray, int depth, float minT) const {
-	if (depth > 4)
+	if (depth > 7)
 		return vec3(0, 0, 0);
 
 	Hit hit = intersect(ray);
@@ -332,7 +332,7 @@ vec3 World::trace(Ray ray, int depth, float minT) const {
 	}
 	else
 	{
-		return sky + sun * pow(std::fmax(dot(cutToVec3(ray.dir), sunDir), 0), 10);
+		return sky + sun * pow(std::fmax(dot(cutToVec3(ray.dir), sunDir), 0), 20);
 	}
 }
 
@@ -347,33 +347,39 @@ void onInitialization() {
 	gpuProgram.create(vertexSource, fragmentSource, "fragmentColor");
 	fullScreenTextQuad.genTexture();
 
-	DiffuseMaterial redDiffuseMaterial(vec3(1, 0.8, 0.8), vec3(1, 1, 1), vec3(1, 0.8, 0.8), 6);
-	DiffuseMaterial greenDiffuseMaterial(vec3(0, 1, 0), vec3(1, 1, 1), vec3(0, 1 ,0), 30);
+	DiffuseMaterial roomDiffuseMaterial(vec3(1, 0.8, 0.8), vec3(1, 1, 1), vec3(1, 0.8, 0.8), 6);
+	DiffuseMaterial blueDiffuseMaterial(vec3(0, 0.2, 0.8), vec3(1, 1, 1), vec3(0, 0.2, 0.8), 8);
+	DiffuseMaterial greenDiffuseMaterial(vec3(0, 1, 0), vec3(1, 1, 1), vec3(0, 1, 0), 30);
 	ReflectiveMaterial gold(vec3(0.17, 0.35, 1.5), vec3(3.1, 2.7, 1.9));
 	ReflectiveMaterial silver(vec3(0.14, 0.16, 0.13), vec3(4.1, 2.3, 3.1));
 
 	world.ambLight = vec3(0.2, 0.2, 0.2);
 	world.sky = vec3(0.2, 0.2, 0.6);
 	world.sun = vec3(5, 5, 2);
-	world.sunDir = normalize(vec3(0, 1, 1));
+	world.sunDir = normalize(vec3(1, 1, -1));
 	world.holeRadius = 0.6;
 
-	QuadraticShape room(redDiffuseMaterial);
+	QuadraticShape room(roomDiffuseMaterial);
 	room.scale(2, 1, 2);
 
 	QuadraticShape ball(greenDiffuseMaterial);
-	ball.scale(0.1, 0.1, 0.1);
-	ball.translate(-0.2, -0.4, 1);
+	ball.scale(0.2, 0.4, 0.2);
+	ball.rotate(0.5, 1, 1, 1);
+	ball.translate(-0.8, -0.5, 0.3);
 
-	QuadraticShape mirror(gold, mat4(1,0,0,0, 0,0,0,1, 0,0,1,0, 0,1,0,0));
+	QuadraticShape pillar(blueDiffuseMaterial, mat4(1,0,0,0, 0,-1,0,0, 0,0,1,0, 0,0,0,-1), -1, 1);
+	pillar.scale(0.2, 1, 0.2);
+	pillar.translate(1, 0.7, 0);
+
+	QuadraticShape mirror(gold, mat4(1,0,0,0, 0,0,0,1, 0,0,1,0, 0,1,0,0), -1, 1);
 	mirror.scale(0.5, 1, 0.5);
-	mirror.translate(0.5, 0, -0.5);
+	mirror.translate(0, 0, -0.5);
 
 	Hit holeHit = room.intersect(Ray(vec3(world.holeRadius, 100, 0), vec3(0, -1, 0)));
 	world.holeHeight = holeHit.point.y;
 
-	QuadraticShape tube(silver, mat4(1,0,0,0, 0,-1,0,0, 0,0,1,0, 0,0,0,-1), world.holeHeight, world.holeHeight + 2);
-	tube.scale(1, 1, 1);
+	QuadraticShape tube(silver, mat4(1,0,0,0, 0,-1,0,0, 0,0,1,0, 0,0,0,-1), world.holeHeight, world.holeHeight + 1.5);
+	tube.scale(1, 4, 1);
 
 	Hit tubeHit = tube.intersect(Ray(vec3(100, world.holeHeight, 0), vec3(-1, 0, 0)));
 	float tubeScale = world.holeRadius / tubeHit.point.x;
@@ -381,6 +387,7 @@ void onInitialization() {
 
 	world.shapes.push_back(&mirror);
 	world.shapes.push_back(&ball);
+	world.shapes.push_back(&pillar);
 	world.shapes.push_back(&room);
 	world.shapes.push_back(&tube);
 

@@ -217,6 +217,9 @@ public:
 
 	Hit intersect(Ray ray) const {
 		Hit hit = shape.intersect(ray);
+		printf("hity: %f, miny: %f\n", hit.point.y, ymin);
+		printf("too low:%d\n", !!(hit.point.y < ymin));
+		printf("too high:%d\n", !!(hit.point.y > ymax));
 
 		if (hit.point.y < ymin || hit.point.y > ymax)
 			hit.shape = nullptr;
@@ -283,10 +286,11 @@ Hit QuadraticShape::intersect(Ray ray) const {
 	return hit;
 }
 
-const int n = 3;
+const int n = 1;
 const float eps = 0.001;
 
 vec3 DiffuseMaterial::trace(const World& world, vec3 point, vec3 normal, vec3 eyeDir, int depth) const {
+	printf("DiffuseMaterial::trace depth=%d\n", depth);
 	vec3 color;
 	color = color + ka * world.ambLight;
 
@@ -311,8 +315,9 @@ vec3 DiffuseMaterial::trace(const World& world, vec3 point, vec3 normal, vec3 ey
 vec3 operator/(vec3 a, vec3 b) {
 	return vec3(a.x / b.x, a.y / b.y, a.z / b.z);
 }
-
+#include <algorithm>
 vec3 ReflectiveMaterial::trace(const World& world, vec3 point, vec3 normal, vec3 eyeDir, int depth) const {
+	printf("ReflectiveMaterial::trace depth=%d\n", depth);
 	float cosAngle = dot(normal, eyeDir);
 	vec3 reflectDir = cosAngle * normal * 2 - eyeDir;
 
@@ -325,21 +330,35 @@ vec3 ReflectiveMaterial::trace(const World& world, vec3 point, vec3 normal, vec3
 
 Hit World::intersect(Ray ray) const {
 	Hit firstHit;
-	for (auto shape : shapes) {
+	/*for (auto shape : shapes) {
 		Hit hit = shape->intersect(ray);
 		if (!hit.shape || hit.t >= firstHit.t)
 			continue;
 
-		if (hit.point.y > holeHeight && length(vec2(hit.point.x, hit.point.z)) < holeRadius)
+		if (hit.point.y > holeHeight && length(vec2(hit.point.x, hit.point.z)) < holeRadius - eps) {
+			printf("continue\n");
 			continue;
+		}
 
 		firstHit = hit;
-	}
+	}*/
+		auto shape = shapes[3];
+		printf("hitting....\n");
+		Hit hit = shape->intersect(ray);
+		printf("%d\n", !!hit.shape);
+		if (hit.shape && hit.t < firstHit.t) {
+				firstHit = hit;
+
+		}
+
+	if (firstHit.shape)
+		printf("hit shape:%d\n", std::distance(shapes.begin(), std::find(shapes.begin(), shapes.end(), firstHit.shape)));
 	return firstHit;
 }
 
 vec3 World::trace(Ray ray, int depth, float minT) const {
-	if (depth > 4)
+	printf("trace depth=%d\n", depth);
+	if (depth > 5)
 		return vec3(0, 0, 0);
 
 	Hit hit = intersect(ray);
@@ -380,19 +399,20 @@ void onInitialization() {
 	world.ambLight = vec3(0.2, 0.2, 0.2);
 	world.sky = vec3(0.2, 0.2, 0.6);
 	world.sun = vec3(5, 5, 2);
-	world.sunDir = normalize(vec3(0, 1, 1));
+	world.sunDir = normalize(vec3(0, 1, -5));
 	world.holeRadius = 0.6;
 
 	QuadraticShape room(redDiffuseMaterial);
 	room.scale(2, 1, 2);
 
 	QuadraticShape ball(greenDiffuseMaterial);
-	ball.scale(0.1, 0.1, 0.1);
-	ball.translate(-0.2, -0.4, 1);
+	ball.scale(0.1, 0.2, 0.1);
+	ball.rotate(1, 1, 1, 1);
+	ball.translate(-0.4, -0.4, -0.5);
 
 	QuadraticShape mirror(gold, mat4(1,0,0,0, 0,0,0,1, 0,0,1,0, 0,1,0,0));
 	mirror.scale(0.5, 1, 0.5);
-	mirror.translate(0.5, 0, -0.5);
+	mirror.translate(0.5, 1, -1);
 
 	QuadraticShape tube(silver, mat4(1,0,0,0, 0,-1,0,0, 0,0,1,0, 0,0,0,-1));
 	tube.scale(1, 4, 1);
@@ -404,7 +424,7 @@ void onInitialization() {
 	float tubeScale = world.holeRadius / tubeHit.point.x;
 	tube.scale(tubeScale, 1, tubeScale);
 
-	YBoundedShape boundedTube(tube, world.holeHeight, world.holeHeight + 2);
+	YBoundedShape boundedTube(tube, world.holeHeight, world.holeHeight + 10);
 
 	world.shapes.push_back(&mirror);
 	world.shapes.push_back(&ball);
@@ -420,6 +440,9 @@ void onInitialization() {
 		while (x * x + z * z > 1);
 		world.holePoints.push_back(vec3(x * world.holeRadius, world.holeHeight, z * world.holeRadius));
 	}
+
+	world.trace(camera.getRay(0, 0.6), 0);
+	exit(0);
 
 
 	for (int j = 0; j < windowHeight; j++) {

@@ -131,18 +131,6 @@ struct Hit {
 	float t = INFINITY;
 };
 
-float firstIntersect(float t1, float t2) {
-	float min = t1 < t2 ? t1 : t2;
-	if (min > 0)
-		return min;
-
-	float max = t1 > t2 ? t1 : t2;
-	if (max > 0)
-		return max;
-
-	return -1;
-}
-
 #define PV(v) printf("%s: %f %f %f\n", #v, v.x, v.y, v.z);
 
 struct Ray {
@@ -209,32 +197,12 @@ public:
 	}
 };
 
-class YBoundedShape : public Shape {
-	const Shape& shape;
-	float ymin, ymax;
-public:
-	YBoundedShape(const Shape& shape, float ymin, float ymax) : Shape(shape.getMaterial()), shape(shape), ymin(ymin), ymax(ymax) {}
-
-	Hit intersect(Ray ray) const {
-		Hit hit = shape.intersect(ray);
-
-		if (hit.point.y < ymin || hit.point.y > ymax)
-			hit.shape = nullptr;
-
-		return hit;
-	}
-
-	void transform(mat4 M) {
-		printf("YBoundedShape::transform unsupported");
-		exit(1);
-	}
-};
-
 class QuadraticShape : public Shape {
 public:
 	mat4 Q;
+	float minY, maxY;
 
-	QuadraticShape(const Material& material, const mat4& Q = mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,-1)) : Shape(material), Q(Q) {}
+	QuadraticShape(const Material& material, const mat4& Q = mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,-1), float minY = -INFINITY, float maxY = INFINITY) : Shape(material), Q(Q), minY(minY), maxY(maxY) {}
 
 	void transform(mat4 M);
 	Hit intersect(Ray ray) const;
@@ -270,16 +238,23 @@ Hit QuadraticShape::intersect(Ray ray) const {
 		return hit;
 
 	float discSqrt = sqrt(disc);
-	float t1 = (-b + discSqrt) / (2 * a);
-	float t2 = (-b - discSqrt) / (2 * a);
+	float t1 = (-b - discSqrt) / (2 * a);
+	float t2 = (-b + discSqrt) / (2 * a);
 
-	if (t1 < 0 && t2 < 0)
+	for (int i = 0; i < 2; i++) {
+		hit.t = i ? t2 : t1;
+		if (hit.t < 0)
+			continue;
+
+		hit.point = cutToVec3(ray.origin + ray.dir * hit.t);
+		if (hit.point.y < minY || hit.point.y > maxY)
+			continue;
+
+		hit.shape = this;
+		hit.normal = normalize(cutToVec3(toHomogeneousPoint(hit.point) * Q));
 		return hit;
+	}
 
-	hit.shape = this;
-	hit.t = firstIntersect(t1, t2);
-	hit.point = cutToVec3(ray.origin + ray.dir * hit.t);
-	hit.normal = normalize(cutToVec3(toHomogeneousPoint(hit.point) * Q));
 	return hit;
 }
 
@@ -394,22 +369,20 @@ void onInitialization() {
 	mirror.scale(0.5, 1, 0.5);
 	mirror.translate(0.5, 0, -0.5);
 
-	QuadraticShape tube(silver, mat4(1,0,0,0, 0,-1,0,0, 0,0,1,0, 0,0,0,-1));
-	tube.scale(1, 4, 1);
-
 	Hit holeHit = room.intersect(Ray(vec3(world.holeRadius, 100, 0), vec3(0, -1, 0)));
 	world.holeHeight = holeHit.point.y;
+
+	QuadraticShape tube(silver, mat4(1,0,0,0, 0,-1,0,0, 0,0,1,0, 0,0,0,-1), world.holeHeight, world.holeHeight + 2);
+	tube.scale(1, 1, 1);
 
 	Hit tubeHit = tube.intersect(Ray(vec3(100, world.holeHeight, 0), vec3(-1, 0, 0)));
 	float tubeScale = world.holeRadius / tubeHit.point.x;
 	tube.scale(tubeScale, 1, tubeScale);
 
-	YBoundedShape boundedTube(tube, world.holeHeight, world.holeHeight + 2);
-
 	world.shapes.push_back(&mirror);
 	world.shapes.push_back(&ball);
 	world.shapes.push_back(&room);
-	world.shapes.push_back(&boundedTube);
+	world.shapes.push_back(&tube);
 
 	for (int i = 0; i < n; i++) {
 		float x, z;

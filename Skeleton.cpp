@@ -202,7 +202,7 @@ public:
 	mat4 Q;
 	float minY, maxY;
 
-	QuadraticShape(const Material& material, const mat4& Q = mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,-1), float minY = -INFINITY, float maxY = INFINITY) : Shape(material), Q(Q), minY(minY), maxY(maxY) {}
+	QuadraticShape(const Material& material, float minY, float maxY, const mat4& Q = mat4(1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,-1)) : Shape(material), Q(Q), minY(minY), maxY(maxY) {}
 
 	void transform(mat4 M);
 	Hit intersect(Ray ray) const;
@@ -230,6 +230,8 @@ void QuadraticShape::transform(mat4 M) {
 
 Hit QuadraticShape::intersect(Ray ray) const {
 	Hit hit;
+	if (ray.origin.y > maxY && ray.dir.y > 0)
+		return hit;
 	float a = dot(ray.dir * Q, ray.dir);
 	float b = dot(ray.dir * Q, ray.origin) + dot(ray.origin * Q, ray.dir);
 	float c = dot(ray.origin * Q, ray.origin);
@@ -359,26 +361,26 @@ void onInitialization() {
 	world.sunDir = normalize(vec3(1, 1, -1));
 	world.holeRadius = 0.6;
 
-	QuadraticShape room(roomDiffuseMaterial);
+	QuadraticShape room(roomDiffuseMaterial, -1, 1);
 	room.scale(2, 1, 2);
 
-	QuadraticShape ball(greenDiffuseMaterial);
+	QuadraticShape ball(greenDiffuseMaterial, -1, 1);
 	ball.scale(0.2, 0.4, 0.2);
 	ball.rotate(0.5, 1, 1, 1);
 	ball.translate(-0.8, -0.5, 0.3);
 
-	QuadraticShape pillar(blueDiffuseMaterial, mat4(1,0,0,0, 0,-1,0,0, 0,0,1,0, 0,0,0,-1), -1, 1);
+	QuadraticShape pillar(blueDiffuseMaterial, -1, 1, mat4(1,0,0,0, 0,-1,0,0, 0,0,1,0, 0,0,0,-1));
 	pillar.scale(0.2, 1, 0.2);
 	pillar.translate(1, 0.7, 0);
 
-	QuadraticShape mirror(gold, mat4(1,0,0,0, 0,0,0,1, 0,0,1,0, 0,1,0,0), -1, 1);
+	QuadraticShape mirror(gold, -1, 1, mat4(1,0,0,0, 0,0,0,1, 0,0,1,0, 0,1,0,0));
 	mirror.scale(0.5, 1, 0.5);
 	mirror.translate(0, 0, -0.5);
 
 	Hit holeHit = room.intersect(Ray(vec3(world.holeRadius, 100, 0), vec3(0, -1, 0)));
 	world.holeHeight = holeHit.point.y;
 
-	QuadraticShape tube(silver, mat4(1,0,0,0, 0,-1,0,0, 0,0,1,0, 0,0,0,-1), world.holeHeight, world.holeHeight + 1.5);
+	QuadraticShape tube(silver, world.holeHeight, world.holeHeight + 1.5, mat4(1,0,0,0, 0,-1,0,0, 0,0,1,0, 0,0,0,-1));
 	tube.scale(1, 4, 1);
 
 	Hit tubeHit = tube.intersect(Ray(vec3(100, world.holeHeight, 0), vec3(-1, 0, 0)));

@@ -260,7 +260,7 @@ Hit QuadraticShape::intersect(Ray ray) const {
 	return hit;
 }
 
-const int n = 5;
+const int n = 8;
 const float eps = 0.001;
 
 vec3 DiffuseMaterial::trace(const World& world, vec3 point, vec3 normal, vec3 eyeDir, int depth) const {
@@ -316,7 +316,7 @@ Hit World::intersect(Ray ray) const {
 }
 
 vec3 World::trace(Ray ray, int depth, float minT) const {
-	if (depth > 7)
+	if (depth >= 6)
 		return vec3(0, 0, 0);
 
 	Hit hit = intersect(ray);
@@ -334,7 +334,7 @@ vec3 World::trace(Ray ray, int depth, float minT) const {
 	}
 	else
 	{
-		return sky + sun * pow(std::fmax(dot(cutToVec3(ray.dir), sunDir), 0), 20);
+		return sky + sun * pow(std::fmax(dot(cutToVec3(ray.dir), sunDir), 0), 10);
 	}
 }
 
@@ -358,7 +358,7 @@ void onInitialization() {
 	world.ambLight = vec3(0.2, 0.2, 0.2);
 	world.sky = vec3(0.2, 0.2, 0.6);
 	world.sun = vec3(5, 5, 2);
-	world.sunDir = normalize(vec3(1, 1, -1));
+	world.sunDir = normalize(vec3(1, 0.8, -1));
 	world.holeRadius = 0.6;
 
 	QuadraticShape room(roomDiffuseMaterial, -1, 1);
@@ -380,8 +380,8 @@ void onInitialization() {
 	Hit holeHit = room.intersect(Ray(vec3(world.holeRadius, 100, 0), vec3(0, -1, 0)));
 	world.holeHeight = holeHit.point.y;
 
-	QuadraticShape tube(silver, world.holeHeight, world.holeHeight + 1.5, mat4(1,0,0,0, 0,-1,0,0, 0,0,1,0, 0,0,0,-1));
-	tube.scale(1, 4, 1);
+	QuadraticShape tube(silver, world.holeHeight, world.holeHeight + 1, mat4(1,0,0,0, 0,-1,0,0, 0,0,1,0, 0,0,0,-1));
+	tube.scale(1, 2, 1);
 
 	Hit tubeHit = tube.intersect(Ray(vec3(100, world.holeHeight, 0), vec3(-1, 0, 0)));
 	float tubeScale = world.holeRadius / tubeHit.point.x;

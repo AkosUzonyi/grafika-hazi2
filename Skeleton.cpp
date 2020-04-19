@@ -271,15 +271,15 @@ vec3 DiffuseMaterial::trace(const World& world, vec3 point, vec3 normal, vec3 ey
 		vec3 lightDir = normalize(lightPoint - point);
 		float lightDist = length(lightPoint - point);
 		float holeArea = world.holeRadius * world.holeRadius * M_PI;
-		float lightAngle = std::fabs(lightDir.y);
+		float lightAngle = fabs(lightDir.y);
 
 		Ray rayToLight(point + normal * eps, lightDir);
 		vec3 lightColor = world.trace(rayToLight, depth + 1, lightDist);
 
 		lightColor = lightColor * holeArea / n * lightAngle / (lightDist * lightDist);
 
-		color = color + lightColor * (kd * std::fmax(dot(normal, lightDir), 0));
-		color = color + lightColor * (ks * pow(std::fmax(dot(normalize((lightDir + eyeDir) / 2), normal), 0), shine));
+		color = color + lightColor * (kd * fmax(dot(normal, lightDir), 0));
+		color = color + lightColor * (ks * pow(fmax(dot(normalize((lightDir + eyeDir) / 2), normal), 0), shine));
 	}
 
 	return color;
@@ -334,7 +334,7 @@ vec3 World::trace(Ray ray, int depth, float minT) const {
 	}
 	else
 	{
-		return sky + sun * pow(std::fmax(dot(cutToVec3(ray.dir), sunDir), 0), 10);
+		return sky + sun * pow(fmax(dot(cutToVec3(ray.dir), sunDir), 0), 10);
 	}
 }
 
